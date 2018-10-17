@@ -1,0 +1,45 @@
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+library(corrgram)
+library(corrplot)
+library(caTools)
+library(randomForest)
+#import data
+data<-read.csv('bikeshare.csv')
+head(data)
+#Visualize data
+ggplot(data,aes(temp,count))+geom_point(aes(color=temp),alpha=.5)+theme_bw()
+data$datetime<- as.POSIXct(data$datetime)
+ggplot(data,aes(datetime,count))+geom_point(aes(color=temp),alpha=.4)+ 
+  scale_color_continuous(low='55D8CE',high='FF6E2E')+theme_bw()
+ggplot(data,aes(factor(season),count))+geom_boxplot(aes(color=factor(season)))
+
+data$hour <- sapply(data$datetime,function(x){format(x,"%H")})
+pl <- ggplot(filter(data,workingday==1),aes(hour,count)) 
+pl <- pl + geom_point(position=position_jitter(w=1, h=0),aes(color=temp),alpha=0.5)
+pl <- pl + scale_color_gradientn(colors = c('dark blue','blue','light blue','light green','yellow','orange','red'))
+pl + theme_bw()
+pl2<- ggplot(filter(data,workingday==0),aes(hour,count)) 
+pl2 <- pl2 + geom_point(position=position_jitter(w=1, h=0),aes(color=temp),alpha=0.5)
+pl2 <- pl2 + scale_color_gradientn(colours = c('dark blue','blue','light blue','light green','yellow','orange','red'))
+pl2 + theme_bw()
+#Build model
+data$hour <- sapply(data$hour,as.numeric)
+set.seed(100)
+sample<-sample.split(data$count,SplitRatio = 0.70)
+train<-subset(data,sample=TRUE)
+test<-subset(data,sample=FALSE)
+model<-randomForest(count ~. -casual - registered -datetime -atemp,data=train)
+pred<-predict(model,test)
+result<-cbind(pred,data$count)
+colnames(result)<-c('predicted','Actual')
+result<-as.data.frame(result)
+head(result)
+SSE<-sum((result$predicted-result$Actual)^2)
+SST<-sum((mean(data$count)-result$Actual)^2)
+R2<-1-(SSE/SST)
+R2
+
+summary(model)
+
